@@ -27,8 +27,6 @@ HC_analysis.guppy_barcoder(cpus = 2)
 HC_analysis.nanofilt(q = 7, cpus=2, just_filt = False)
 
 HC_analysis.minimap(refseqpath = path, nanofilt_q = 7, cpus = 2)
-
-HC_analysis.taxonomy(cpus = 2)
 ```
 
 After processing the files, obtaining the read count for each resulting alignment files (.paf)can be done with the `alignment-parser.R` script.
