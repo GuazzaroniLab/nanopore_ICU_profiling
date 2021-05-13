@@ -1,5 +1,5 @@
 # Nanopore sequencing provides rapid and reliable insight into microbial profiles of Intensive Care Units
-__Guilherme Marcelino Viana de Siqueira, Felipe Marcelo Pereira-dos-Santos, Rafael Silva-Rocha, María-Eugenia Guazzaroni__
+_Guilherme Marcelino Viana de Siqueira, Felipe Marcelo Pereira-dos-Santos, Rafael Silva-Rocha, María-Eugenia Guazzaroni_
 
 In this repository we provide a custom pipeline for taxonomic assignment of long-read 16S sequencing. We have submitted this work in the Biorxiv (we'll update the link as soon as it is available)
 
@@ -15,7 +15,7 @@ Next, provide paths in which demultiplexed sequencing files (.FASTQ) might be fo
 path = '/home/user/Documents/experiment_data'
 lib = ['Experiment1', 'Experiment2']
 ```
-The next steps automate the pipeline guppy_barcoder (for removing barcodes) -> NanoFilt -> Minimap2. The minimap2 step depends on the file refseq_16S.fa, that can be found in this repository
+The next steps automate the pipeline guppy_barcoder (for removing barcodes) -> NanoFilt -> Minimap2. The minimap2 step depends on the file refseq_16S.fa, that can be found in this repository as a .zip file
 
 ```
 HC_analysis = minion_analysis.Analysis(path, lib)
