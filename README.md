@@ -1,8 +1,7 @@
 # Nanopore sequencing provides rapid and reliable insight into microbial profiles of Intensive Care Units
 _Guilherme Marcelino Viana de Siqueira, Felipe Marcelo Pereira-dos-Santos, Rafael Silva-Rocha, María-Eugenia Guazzaroni_
 
-In this repository we provide a custom pipeline for taxonomic assignment of long-read 16S sequencing. We have submitted this work in the Biorxiv (we'll update the link as soon as it is available)
-
+In this repository we provide a custom pipeline for taxonomic assignment of long-read 16S sequencing. We have submitted this work [in Biorxiv](https://www.biorxiv.org/content/10.1101/2021.05.14.444165v1)!!
 
 ## Usage
 
@@ -34,3 +33,6 @@ After processing the files, obtaining the read count for each resulting alignmen
 ``Rscript --vanilla ./alignment-parser.R [path] [lib(s)]``
 
 For this, the `nametable.tsv` file (that relates NCBI accession numbers and species names)  should be located in a directory within the working environment.
+
+
+**UPDATE July 21st 2021:** We now provide an example for our downstream analysis in R. Data and code can be found `analysis-example`. Please, feel free to contact us at viana.guilherme@usp.br for any questions or suggestions.
