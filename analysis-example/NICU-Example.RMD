@@ -1,0 +1,487 @@
+---
+title: "Analysis example using NICU"
+author: "Guilherme Marcelino Viana de Siqueira, Felipe Marcelo Pereira-dos-Santos, Rafael Silva-Rocha and María-Eugenia Guazzaroni"
+date: "July 21^st^, 2021"
+output:
+  html_document:
+    toc: true
+    theme: united
+editor_options: 
+  markdown: 
+    wrap: 72
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Introduction
+
+In this document, we are going to illustrate some of the steps taken in
+our work [Nanopore sequencing provides rapid and reliable insight into
+microbial profiles of Intensive Care
+Units](https://www.biorxiv.org/content/10.1101/2021.05.14.444165v1)
+(under revision), in which we compared the microbial composition of
+hospital surfaces using using two distinct sequencing approaches (2^nd^
+generation short-read Illumina sequencing and 3^rd^ generation long-read
+Nanopore sequencing). In this working example, we will compare results
+for the Neonatal ICU (NICU) microbiota and compare whether there were
+significative differences with the two approaches.
+
+# Analysis
+
+### Importing the important packages
+
+```{r message=FALSE}
+library(tidyr)
+library(readr)
+library(tibble)
+library(magrittr)
+library(vegan)
+library(dplyr)
+library(ggplot2)
+library(reshape2)
+library(dendextend)
+library(ggtext)
+library(stringr)
+library(purrr)
+library(forcats)
+library(RColorBrewer)
+```
+
+### Input data
+
+We have provided two tables (minION_nicu.tsv and illumina_nicu.tsv) in
+this directory with relative abundances for the taxa detected in both
+sequencing approaches. In short, OTU / read count tables were obtained
+at the end of each analysis pipeline (QIIME or our custom nanopore
+pipeline) and abundance values were normalized using the total sum
+scaling (TSS) method, that is, the value of each individual group was
+divided by the total of each sample to generate a table of relative
+frequencies.
+
+We may import these tables in the following objects `minION_nicu` and
+`illumina_nicu` before continuing the analysis
+
+```{r message=FALSE}
+# reading the data frames from the files
+minION_nicu <- read_tsv("minION_nicu.tsv")
+illumina_nicu <- read_tsv("illumina_nicu.tsv")
+
+# checking the result out
+head(minION_nicu)[,1:4] #just checking the first few columns and rows
+head(illumina_nicu)[,1:4] #just checking the first few columns and rows
+
+```
+
+As we might notice, both data frames contain a column with the name of
+the different genera detected ("taxa") and several columns with relative
+abundance values of these. In some of the steps that follow we would
+rather have these data frames as *matrices* (i.e. all numeric). We are
+going to do it by turning the first column in each of them to the row
+names
+
+```{r}
+
+minION_nicu_mat  <- minION_nicu %>% column_to_rownames(var = "taxa")
+illumina_nicu_mat <- illumina_nicu %>% column_to_rownames(var = "taxa")
+
+head(minION_nicu_mat)[,1:4] #just checking the first few columns and rows
+head(illumina_nicu_mat)[,1:4] #just checking the first few columns and rows
+```
+
+We may now proceed to different analyses.
+
+### Calculating diversity indexes
+
+In R, the [package
+vegan](https://cran.r-project.org/web/packages/vegan/index.html)
+provides several utilities for researchers working with community
+ecology. The function `diversity()` allows us to calculate Shannon's
+diversity index (and several others, for that matter) starting from our
+matrices. In the function calls below, the argument `MARGIN = 2` allows
+us to compute the indexes column-wise, since that's the way our data is
+organized.
+
+```{r}
+minION_nicu_div <- diversity(minION_nicu_mat, index = "shannon", MARGIN = 2)
+illumina_nicu_div <- diversity(illumina_nicu_mat, index = "shannon", MARGIN = 2)
+
+head(minION_nicu_div)
+head(illumina_nicu_div)
+```
+
+The output of vegan's diversity function is a named vector with the
+computed values for each of our samples. While it is already possible to
+interpret data like this, we may wish to process it further to bette
+visualize the data. The code chunk below prepares data for ggplot
+plotting.
+
+```{r}
+### making data longer for ggplot2
+
+# First, for the minION dataset
+minION_nicu_div %<>% melt(value.name = "index") %>%
+  rownames_to_column(var = "samples") %>% # creates a new column with the row names
+  mutate(method = "minION", ward = "NICU") # creates new columns for the sequencing method and ward the samples were collected in
+
+# Now for the illumina dataset, same as above.
+illumina_nicu_div %<>% melt(value.name = "index") %>%
+  rownames_to_column(var = "samples") %>%
+  mutate(method = "Illumina", ward = "NICU")
+
+## joining the tables
+diversity_nicu <- bind_rows(minION_nicu_div, illumina_nicu_div)
+```
+
+Now we might proceed to generating our heat map
+
+```{r fig.width=16, fig.height=8}
+ggplot(diversity_nicu, aes(y = samples, x = ward, fill = index)) +
+  geom_tile(color = "gray90", size = 1) +
+  facet_wrap(~ method) + labs(y = "", x = "", fill = "Shannon's\nIndex") + 
+  scale_fill_gradient2(low = "lightskyblue",
+                       high = "tomato3",
+                       mid = "lightcyan1",
+                       midpoint = 1.6) +
+  theme( # personalization of axis text
+        
+        axis.title.x = element_blank(),
+        axis.text.x = element_blank(),
+        axis.text = element_text(size = 20, color = "black"),
+        axis.ticks = element_blank(),
+
+        # personalization of the legend
+        legend.title = element_text(size = 24),
+        legend.text = element_text(size = 20),
+        legend.key.height = unit(20, units = "pt"),
+        
+        # personalization of the panels
+        panel.background = element_rect(fill = "white"),
+        strip.background = element_rect(fill = "white"),
+        strip.text = element_text(size = 28),
+        
+        # aspect ratio of the panel and margins of the plot
+        plot.margin = margin(t = 0, l = 3, r = 0, b = 3),
+        aspect.ratio = 49/11)  
+```
+
+As discussed in the manuscript, we can see that diversity values were
+lower with nanopore sequencing than with illumina sequencing. We see
+this as an direct consequence of the limitations in throughput obtained
+with nanopore sequencing due to the use of Flongle flowcells. We next
+may evaluate wheter these differences impact the analysis as a whole.
+
+### Comparing dendrograms
+
+While the information of the diversity indexes may help us appreciate
+differences in richness between samples, we would also like to
+understand how differently the samples relate to one another in both
+methods. The [package
+dendextend](https://cran.r-project.org/web/packages/dendextend/index.html)
+allows us to draw dendrograms and compare then with tanglegrams, which
+is a nice way to assess the information we have at our disposal.
+Moreover, it makes it possible to compute the cophenetic correlation
+index between the dendrograms and other useful metric that we may
+include in our figures.
+
+The code chunk below demonstrate how to generate a tanglegram starting
+from our matrices
+
+```{r fig.width=12, fig.height=5}
+
+# Let's calculate the dissimilarity matrices between the samples individually for each sequencing method. Here, we use the Bray-Curtis method
+
+NICU_minION_d <- vegan::vegdist(x = t(minION_nicu_mat), method = "bray")
+NICU_illumina_d <- vegan::vegdist(x = t(illumina_nicu_mat), method = "bray")
+
+# Next, we compute both hierarchical clusterings with the function hclust
+NICU_minION_hc <- hclust(NICU_minION_d, method = "ward.D2")
+NICU_illumina_hc <- hclust(NICU_illumina_d, method = "ward.D2")
+
+# Create the two dendrograms
+NICU_dend1 <- as.dendrogram(NICU_illumina_hc)
+NICU_dend2 <- as.dendrogram(NICU_minION_hc)
+
+
+# Finally, the first step to plot the tanglegram is to create a list containing our dendrograms
+NICU_dend_list <- dendlist(NICU_dend1, NICU_dend2)
+
+# Now that we have both dendrograms, we may compute indexes such as the cophenetic correlation and the entanglement level, which informs us about howw well-resolved the trees are
+
+NICU_correlation_dend <- cor.dendlist(NICU_dend_list, method = "cophenetic")[1,2] %>% round(digits = 3)
+
+NICU_entanglement <- NICU_dend_list %>%
+  untangle(method = "step2side") %>% # Find the best alignment layout
+  entanglement() %>%                    # Alignment quality
+  round(digits = 3)
+
+
+# And make the tanglegram
+NICU_tanglegram <- NICU_dend_list %>% set("labels_cex",1.8) %>%
+              untangle(method = "step2side") %>% # Find the best alignment layout
+              tanglegram(highlight_distinct_edges  = FALSE,
+                 highlight_branches_lwd = FALSE,
+                 main_left = "Illumina",
+                 main_right = "minION",
+                 columns_width = c(4,3,4),
+                 sort = TRUE,
+                 edge.lwd = 1.5,
+                 margin_inner = 18,
+                 margin_outer = 1,
+                 margin_bottom = 4,
+                 sub = paste0("entanglement = ", NICU_entanglement, "\ncorrelation = ", NICU_correlation_dend),
+                 cex_sub = 1.5,
+                 cex.axis = 2,
+                 lwd = 5)
+
+```
+
+We see here that the two dendrograms correlate well. To us, this
+suggests that the use of either sequencing method did not interfere with
+relationships formed between the sampled sites regarding the present
+microbiota.
+
+### Building barplots
+
+Some of the main figures in our manuscript are bar plots showing the
+community composition in the different samples. Here we show how to
+build one of them starting from our objects `minION_nicu` and
+`illumina_nicu`.
+
+As with any plot made with ggplot2, data should be in the long format.
+First, however, we are going to define a function called `addOthers`,
+which allows us to subset our data using arbitrary thresholds for
+improved visualization. With this function, everything below a value
+will be tagged as "Others" in our data frame (it is akin to the
+`fct_lump` function in the [forcats
+package](https://forcats.tidyverse.org/reference/fct_lump.html).
+
+```{r}
+addOthers <- function(moltenTable, threshold = 0.01){
+  
+  input <- moltenTable # the input is a long table
+  
+  if (threshold != 0) {
+    
+    others <- input %>%
+      group_by(source) %>% # groups by sample
+      filter(abundance < threshold) %>% # filter results below a threshold
+      tally(abundance) %>% # sum the relative abundances
+      rename(abundance =  n) %>% ## these next 2 lines adjust the "Others"
+      cbind(taxa = "Others") %>% ## line to be compatible with the moltenTable
+      relocate(taxa)
+    
+    input %<>% filter(abundance >= threshold) %>% # removes what was above the Threshold from the original input
+      bind_rows(others) # adds the Others row to the molten dataframe
+  }
+
+  return(input)
+}
+```
+
+Now, we may prepare the data using `melt`, as we have done for the
+diversity plot. Notice that we chose to set a threshold for "Others" at
+2.5% so that we can better appreciate the most abundant taxa present in
+the samples by clumping the least abundant together.
+
+```{r}
+## making data ggplot2-friendly
+
+# for the nanopore dataset
+
+minION_nicu_long <- minION_nicu %>%
+  melt(measure.vars = colnames(minION_nicu)[-1], # makes data longer from columns that are not "taxa"
+       variable.name = "source",
+       value.name = "abundance") %>%
+  addOthers(., threshold = 0.025)%>% # sets a threshold at 2.5%
+  mutate(method = "Nanopore") # creates a "method" column to separate minION from Illumina samples 
+
+# for the illumina dataset
+
+illumina_nicu_long <- illumina_nicu %>%
+  melt(measure.vars = colnames(illumina_nicu)[-1], #same as above
+       variable.name = "source",
+       value.name = "abundance") %>%
+  addOthers(., threshold = 0.025) %>%
+  mutate(method = "Illumina")
+
+# Joining the tables
+NICU_fulltable <- bind_rows(minION_nicu_long, illumina_nicu_long)
+
+
+```
+
+Finally, in the code chunk below we provide a color palette to the
+figure, modifify the data frame to personalize the appearance of the
+labels using `ggtext`.
+
+```{r}
+
+# this will make the labels * italicized * when we use element_markdown() from the package ggtext in the theme of the plot
+
+NICU_fulltable$taxa %<>% map_chr(~ paste0("*",.x,"*")) %>%
+str_replace_all("\\*Others\\*", replacement = "Others") %>% # others does'nt need to be in italics
+str_replace_all("\\*Not Assigned\\*", replacement = "Not Assigned") # and neither does "not assigned"
+
+
+# Then, let's establish our color palette
+
+## These are the colors we are going to want to work with
+purples <- brewer.pal(n = 5, name = "BuPu")[-c(1:4)]
+blues <- rev(brewer.pal(n = 5, name = "Blues")[-1])
+greens <- brewer.pal(n = 5, name = "YlGn")[-1]
+oranges <- c("#FFEC8B", "#FECC5C", "#fe9a4d", "#fe6f01")
+reds <- c("#b30024", "#ff0033", "#ff554d", "#ff9e99")
+purples <- append(purples, c("#ac39ac", "#cc66cc", "#ffb3ff"))
+beiges <- c("#999966", "#adad85", "#ccccb3")
+aquamarines <- c("#25a696", "#43d6c5", "#96e8df")
+
+## Let's assemble them in a single vector
+custom_colors_icunicu <- c(rev(aquamarines), blues, rev(oranges), rev(greens), beiges, reds, rev(purples))
+
+# Now let's make the color palette exented for the size of the number of genera we have. Moreover, we want "Not assigned" and "others" to have unique grey tones
+
+names_NICU_genera <- unique(NICU_fulltable$taxa) %>% str_subset(pattern = "Other|Assigned", negate = TRUE) # how many unique genera do we have?
+
+mycolors_NICU_genera <- rep_len(custom_colors_icunicu,
+                                length.out = length(names_NICU_genera)) %>% # repeating the palette to match the amount of genera
+  append(c("#b3b3b3", "#737373")) %>% # appending the grey colors
+  set_names(., nm = c(sort(names_NICU_genera), "Not Assigned", "Others"))
+
+# Finally, this puts "others" and "not assigned" at the end of the plots:
+NICU_order <- fct_relevel(NICU_fulltable$taxa, c("Not Assigned",
+"Others"), after = Inf)
+```
+
+Now we may proceed to the actual plotting
+
+```{r fig.width=16, fig.height=8}
+
+ggplot( NICU_fulltable,
+        aes( x = source, y = abundance, fill = NICU_order ) ) +
+  geom_bar( stat = "identity", position = "fill" ) +
+  coord_flip() + 
+  scale_fill_manual(values = mycolors_NICU_genera) +
+  guides(fill = guide_legend(nrow = 8, title = "Genera")) +
+  scale_y_continuous(labels = scales::percent) +
+  scale_x_discrete(position = "bottom") +
+  labs(y = "Relative Abundance (%)", x = "") +
+  facet_wrap( ~ method ) +
+  theme_minimal() +
+  theme(
+
+    # personalization of axis text
+    axis.title.x = element_text(size = 22,color = "black", margin = margin(t = 20)),
+    axis.text = element_text(size = 20, color = "black"),
+    axis.text.y = element_text(angle = 0),
+    axis.ticks = element_blank(),
+
+    # personalization of the legend
+    legend.title = element_text(size = 20 ),
+    legend.text = element_markdown(size = 16),
+    legend.key.height = unit(15, units = "pt"),
+    legend.position = c(0.375, -0.675),
+
+    # personalization of the panels
+    panel.background = element_rect(fill = "white"),
+    strip.background = element_rect(fill = "white", colour = "white"),
+    strip.text.x = element_text(size = 22, face = "bold"),
+    panel.spacing.x = unit(15, "pt"),
+    panel.spacing.y = unit(10, "pt"),
+
+    panel.grid.major = element_blank(),
+    panel.grid.minor = element_blank(),
+
+    # aspect ratio of the panel and margins of the plot
+    plot.margin = margin(t = -150, r = 10, b = 0, l = 0),
+    aspect.ratio = 9/16
+
+)
+```
+
+### Permutational multivariate analysis of variance
+
+The bar plot above allows us to better observe the general profile of
+the microbial community detected in the samples with bot sequencing
+methods, and given the overall results presented so far, we might assume
+that, even though we have different sequencing approaches, the overall
+microbial communities detected in the samples were not deeply affected.
+Nonetheless, we might employ a multivariate analysis to test whether
+there was a significant difference in the microbial composition in the
+samples due to the sequencing method.
+
+In order to do so, we will start with the long data frames generated for
+the plotting (because of the way the data is already presented - for
+instance, with the "method column"), but we are going to make some
+adjustments:
+
+```{r message=FALSE}
+
+
+table_minION <- minION_nicu_long %>%
+  pivot_wider(names_from = taxa, values_from = abundance) %>%
+  select(-Others) 
+
+table_illumina <- illumina_nicu_long %>%
+  pivot_wider(names_from = taxa, values_from = abundance) %>%
+  select(- Others, - `Not Assigned`)
+
+
+all_data <- full_join(table_minION, table_illumina) %>% # this fills the gaps                                                                 between the tables
+  mutate_if(is.numeric, replace_na, 0)
+
+head(all_data)[,1:5] # checking the first few rows and columns
+```
+
+Above, we have removed the information regarding the groups "Others" and
+"Not Assigned", that are unimportant to us at the moment. Moreover, we
+joined the data frames using `full_join()`. This is important, because
+it will complete all of the missing genera from both approaches
+throughout the table. In the final table, the two first columns are
+metadata (which samples and sequencing method) and the remaining columns
+are the relative abundance values for the different genera.
+
+To perform the PERMANOVA, we will calculate the Bray-Curtis
+dissimilarity index across all of our samples and input this new table
+into `adonis2()` from Vegan. In the `formula` parameter we specify which
+variable we aim for as the explanatory in our analysis. In the example
+below, we are sayin "calculate all_data dataset in fucntion of the
+'method' factor"
+
+```{r}
+
+set.seed(12345) # setting the random seed for reproducibility
+
+all_data_dist <- vegdist(all_data[,-c(1,2)], "bray") # excludes the metadata columns
+
+
+adonis2(formula = all_data_dist ~ method,
+       data = all_data,
+       permutations = 10000)
+```
+
+The results above show that, after 10000 permutations, the 'method'
+variable could explain only about 7.5% of the model (R²), and it did not
+find a significative correlation between the method employed and the
+differences of the microbiome (*p*-value = 0.07). Let's compare this
+result to the ones we might obtain when analyzing data with regards to
+the environmental samples
+
+```{r}
+
+adonis2(formula = all_data_dist ~ source,
+       data = all_data,
+       permutations = 10000)
+
+```
+
+Here, we see that the results are extremely significative (\*\*\*), and
+almost 78% of the variation in the model could be explained by this
+variable!
+
+### About the session
+
+```{r}
+sessionInfo()
+```
