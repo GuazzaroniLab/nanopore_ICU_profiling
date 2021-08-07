@@ -35,4 +35,4 @@ After processing the files, obtaining the read count for each resulting alignmen
 For this, the `nametable.tsv` file (that relates NCBI accession numbers and species names)  should be located in a directory within the working environment.
 
 
-**UPDATE July 21st 2021:** We now provide an example for our downstream analysis in R. Data and code can be found `analysis-example`. Please, feel free to contact us at viana.guilherme@usp.br for any questions or suggestions.
+**UPDATE July 21st 2021:** We now provide an example for our downstream analysis in R. Data and code can be found in the directory `analysis-example`. Please, feel free to contact us at viana.guilherme@usp.br for any questions or suggestions.
